@@ -1,0 +1,23 @@
+# permissions for end users to view redisoperators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: redis-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: redisoperator-viewer-role
+rules:
+- apiGroups:
+  - api.core.matanmagen.io
+  resources:
+  - redisoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - api.core.matanmagen.io
+  resources:
+  - redisoperators/status
+  verbs:
+  - get
