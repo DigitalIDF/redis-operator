@@ -1,0 +1,14 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push-image:
+    uses: digitalidf/digitalidf-actions/.github/workflows/build-and-push-image.yaml@v1.1.0
+    with:
+      image: redis-operator
+      enable_latest_tag: true
+      enable_version_tag: false
