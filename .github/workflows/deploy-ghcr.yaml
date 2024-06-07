@@ -7,6 +7,6 @@ on:
 
 jobs:
   build-and-push-image:
-    uses: digitalidf/digitalidf-actions/.github/workflows/build-and-push-image.yaml@vv1.0.0
+    uses: digitalidf/digitalidf-actions/.github/workflows/build-and-push-image.yaml@v1.1.0
     with:
       image: redis-operator
