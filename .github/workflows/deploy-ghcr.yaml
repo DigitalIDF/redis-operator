@@ -10,4 +10,3 @@ jobs:
     uses: digitalidf/digitalidf-actions/.github/workflows/build-and-push-image.yaml@v1
     with:
       image: redis-operator
-      enable_latest_tag: true
