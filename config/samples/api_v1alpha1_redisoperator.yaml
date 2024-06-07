@@ -6,4 +6,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: redisoperator-sample
 spec:
-  # TODO(user): Add fields here
+  redisversion: "6.0.10"  # replace with the desired Redis version
+  exporterVersion: "latest"  # replace with the desired Exporter version
+  teamName: "team-matan"  # replace with your team name

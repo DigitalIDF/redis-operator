@@ -41,8 +41,6 @@ spec:
             properties:
               exporterVersion:
                 type: string
-              namespace:
-                type: string
               redisversion:
                 description: redis version to deploy
                 type: string
@@ -50,7 +48,6 @@ spec:
                 type: string
             required:
             - exporterVersion
-            - namespace
             - redisversion
             - teamName
             type: object

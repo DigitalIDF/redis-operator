@@ -68,12 +68,12 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	exporterDeployment := newRedisExporterDeployment("redis-svc", req.Namespace, exporterVersion, teamName)
+	exporterDeployment := newRedisExporterDeployment(req.Name, req.Namespace, exporterVersion, teamName)
 	if err := r.Create(ctx, exporterDeployment); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	redisSvc := newRedisService(req.Name, req.Namespace, teamName)
+	redisSvc := newRedisService("redis-svc", req.Namespace, teamName)
 	if err := r.Create(ctx, redisSvc); err != nil {
 		return ctrl.Result{}, err
 	}
