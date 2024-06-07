@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -62,17 +63,28 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	teamName := instance.Spec.TeamName
 
 	// create deplotment for redis and redis exporter
-	redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, exporterVersion, teamName)
+	redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, teamName)
 	if err := r.Create(ctx, redisDeployment); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	exporterDeployment := newRedisExporterDeployment("redis-svc", req.Namespace, exporterVersion, teamName)
+	if err := r.Create(ctx, exporterDeployment); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	redisSvc := newRedisService(req.Name, req.Namespace, teamName)
+	if err := r.Create(ctx, redisSvc); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func newRedisDeployment(name, namespace string, redisVersion string, exporterVersion string, teamName string) *appsv1.Deployment {
+func newRedisDeployment(name, namespace string, redisVersion string, teamName string) *appsv1.Deployment {
 	labels := map[string]string{
-		"app": "redis",
+		"app":  "redis",
+		"team": teamName,
 	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -105,6 +117,79 @@ func newRedisDeployment(name, namespace string, redisVersion string, exporterVer
 		},
 	}
 	return dep
+}
+
+func newRedisExporterDeployment(name, namespace string, exporterVersion string, teamName string) *appsv1.Deployment {
+	labels := map[string]string{
+		"app":  "redis-exporter",
+		"team": teamName,
+	}
+	annotations := map[string]string{
+		"prometheus.io/scrape": "true",
+		"prometheus.io/port":   "9121",
+		"prometheus.io/path":   "/metrics",
+	}
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name + "-exporter",
+			Namespace: namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: func(i int32) *int32 { return &i }(1),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      labels,
+					Annotations: annotations,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "redis-exporter",
+							Image: "oliver006/redis_exporter:" + exporterVersion,
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 9121,
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "REDIS_ADDR",
+									Value: "redis://redis-svc:6379",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return dep
+}
+
+func newRedisService(name, namespace string, teamName string) *corev1.Service {
+	labels := map[string]string{
+		"app":  "redis",
+		"team": teamName,
+	}
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: labels,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       6379,
+					TargetPort: intstr.FromInt(6379),
+				},
+			},
+		},
+	}
+	return svc
 }
 
 // SetupWithManager sets up the controller with the Manager.
