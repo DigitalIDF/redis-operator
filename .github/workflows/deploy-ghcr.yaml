@@ -11,4 +11,3 @@ jobs:
     with:
       image: redis-operator
       enable_latest_tag: true
-      enable_version_tag: false
