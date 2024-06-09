@@ -21,6 +21,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -62,7 +63,16 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	exporterVersion := instance.Spec.ExporterVersion
 	teamName := instance.Spec.TeamName
 
-	// create deplotment for redis and redis exporter
+	configMap := newConfigMap(req.Name, req.Namespace, redisVersion, exporterVersion, teamName)
+	if err := r.Create(ctx, configMap); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	pvcData := newPVC(req.Name, req.Namespace, teamName)
+	if err := r.Create(ctx, pvcData); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, teamName)
 	if err := r.Create(ctx, redisDeployment); err != nil {
 		return ctrl.Result{}, err
@@ -79,6 +89,46 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func newConfigMap(name, namespace string, redisVersion string, exporterVersion string, teamName string) *corev1.ConfigMap {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redis-config",
+			Namespace: namespace,
+		},
+		Data: map[string]string{
+			"redis.conf": `
+				save 60 1
+				save 300 10
+				save 900 100
+				save 86400 1 # Save every 24 hours
+				dir /data
+				dbfilename dump.rdb
+			`,
+		},
+	}
+	return cm
+}
+
+func newPVC(name, namespace string, teamName string) *corev1.PersistentVolumeClaim {
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redis-data",
+			Namespace: namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("10Gi"),
+				},
+			},
+		},
+	}
+	return pvc
 }
 
 func newRedisDeployment(name, namespace string, redisVersion string, teamName string) *appsv1.Deployment {
@@ -108,6 +158,38 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 6379,
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "redis-storage",
+									MountPath: "/data",
+								},
+								{
+									Name:      "redis-config",
+									MountPath: "/usr/local/etc/redis/redis.conf",
+									SubPath:   "redis.conf",
+								},
+							},
+							Command: []string{"redis-server", "/usr/local/etc/redis/redis.conf"},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "redis-storage",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "redis-data",
+								},
+							},
+						},
+						{
+							Name: "redis-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "redis-config",
+									},
 								},
 							},
 						},
