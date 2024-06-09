@@ -102,7 +102,7 @@ func newConfigMap(name, namespace string, redisVersion string, exporterVersion s
 				save 60 1
 				save 300 10
 				save 900 100
-				save 86400 1 # Save every 24 hours
+				save 86400 1
 				dir /data
 				dbfilename dump.rdb
 			`,
