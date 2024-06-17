@@ -186,7 +186,7 @@ func removeString(list []string, s string) (result []string) {
 func newConfigMap(name, namespace string, redisVersion string, exporterVersion string, teamName string) *corev1.ConfigMap {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      "redis-config",
 			Namespace: namespace,
 			Labels: map[string]string{
 				"project": teamName,
