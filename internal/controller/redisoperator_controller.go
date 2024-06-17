@@ -31,6 +31,8 @@ import (
 	apiv1alpha1 "github.com/MatanMagen/redis-operator.git/api/v1alpha1"
 )
 
+const redisOperatorFinalizer = "finalizer.redisoperators.api.core.matanmagen.io"
+
 // RedisOperatorReconciler reconciles a RedisOperator object
 type RedisOperatorReconciler struct {
 	client.Client
@@ -51,44 +53,134 @@ type RedisOperatorReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.2/pkg/reconcile
 func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	instance := &apiv1alpha1.RedisOperator{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// Now you can access the Spec fields
-	redisVersion := instance.Spec.RedisVersion
-	exporterVersion := instance.Spec.ExporterVersion
-	teamName := instance.Spec.TeamName
+	if instance.DeletionTimestamp.IsZero() {
+		// The RedisOperator is not being deleted, proceed with normal reconcile logic
+		if !containsString(instance.Finalizers, redisOperatorFinalizer) {
+			instance.Finalizers = append(instance.Finalizers, redisOperatorFinalizer)
+			if err := r.Update(context.TODO(), instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 
-	configMap := newConfigMap(req.Name, req.Namespace, redisVersion, exporterVersion, teamName)
-	if err := r.Create(ctx, configMap); err != nil {
-		return ctrl.Result{}, err
-	}
+		// Now you can access the Spec fields
+		redisVersion := instance.Spec.RedisVersion
+		exporterVersion := instance.Spec.ExporterVersion
+		teamName := instance.Spec.TeamName
 
-	pvcData := newPVC(req.Name, req.Namespace, teamName)
-	if err := r.Create(ctx, pvcData); err != nil {
-		return ctrl.Result{}, err
-	}
+		configMap := newConfigMap(req.Name, req.Namespace, redisVersion, exporterVersion, teamName)
+		if err := r.Create(ctx, configMap); err != nil {
+			return ctrl.Result{}, err
+		}
 
-	redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, teamName)
-	if err := r.Create(ctx, redisDeployment); err != nil {
-		return ctrl.Result{}, err
-	}
+		pvcData := newPVC(req.Name, req.Namespace, teamName)
+		if err := r.Create(ctx, pvcData); err != nil {
+			return ctrl.Result{}, err
+		}
 
-	exporterDeployment := newRedisExporterDeployment(req.Name, req.Namespace, exporterVersion, teamName)
-	if err := r.Create(ctx, exporterDeployment); err != nil {
-		return ctrl.Result{}, err
-	}
+		redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, teamName)
+		if err := r.Create(ctx, redisDeployment); err != nil {
+			return ctrl.Result{}, err
+		}
 
-	redisSvc := newRedisService("redis-svc", req.Namespace, teamName)
-	if err := r.Create(ctx, redisSvc); err != nil {
-		return ctrl.Result{}, err
+		exporterDeployment := newRedisExporterDeployment(req.Name, req.Namespace, exporterVersion, teamName)
+		if err := r.Create(ctx, exporterDeployment); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		redisSvc := newRedisService("redis-svc", req.Namespace, teamName)
+		if err := r.Create(ctx, redisSvc); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		// The RedisOperator is being deleted, perform cleanup tasks
+		// Delete the ConfigMap
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "redis-config",
+				Namespace: instance.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, configMap); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+
+		// Delete the PVC
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "redis-data",
+				Namespace: instance.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, pvc); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+
+		// Delete the Redis Deployment
+		redisDeployment := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      instance.Name,
+				Namespace: instance.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, redisDeployment); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+
+		// Delete the Redis Exporter Deployment
+		exporterDeployment := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      instance.Name + "-exporter",
+				Namespace: instance.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, exporterDeployment); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+
+		// Delete the Redis Service
+		redisSvc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "redis-svc",
+				Namespace: instance.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, redisSvc); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+
+		instance.Finalizers = removeString(instance.Finalizers, redisOperatorFinalizer)
+		if err := r.Update(context.TODO(), instance); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// containsString checks if a list contains a string
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// removeString removes a string from a list
+func removeString(list []string, s string) (result []string) {
+	for _, v := range list {
+		if v != s {
+			result = append(result, v)
+		}
+	}
+	return
 }
 
 func newConfigMap(name, namespace string, redisVersion string, exporterVersion string, teamName string) *corev1.ConfigMap {
