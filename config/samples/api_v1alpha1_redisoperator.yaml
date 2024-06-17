@@ -5,7 +5,7 @@ metadata:
     app.kubernetes.io/name: redis-operator
     app.kubernetes.io/managed-by: kustomize
   name: redisoperator-sample
-  namespace: lazar-ns
+  namespace: oshri-ns
 spec:
   redisversion: "6.0.10"  # replace with the desired Redis version
   exporterVersion: "latest"  # replace with the desired Exporter version

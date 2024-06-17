@@ -186,8 +186,12 @@ func removeString(list []string, s string) (result []string) {
 func newConfigMap(name, namespace string, redisVersion string, exporterVersion string, teamName string) *corev1.ConfigMap {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "redis-config",
+			Name:      name,
 			Namespace: namespace,
+			Labels: map[string]string{
+				"project": teamName,
+				"env":     "dev",
+			},
 		},
 		Data: map[string]string{
 			"redis.conf": `
@@ -205,6 +209,10 @@ func newPVC(name, namespace string, teamName string) *corev1.PersistentVolumeCla
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "redis-data",
 			Namespace: namespace,
+			Labels: map[string]string{
+				"project ": teamName,
+				"env":      "dev",
+			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -219,11 +227,11 @@ func newPVC(name, namespace string, teamName string) *corev1.PersistentVolumeCla
 	}
 	return pvc
 }
-
 func newRedisDeployment(name, namespace string, redisVersion string, teamName string) *appsv1.Deployment {
 	labels := map[string]string{
-		"app":  "redis",
-		"team": teamName,
+		"app":     "redis",
+		"project": teamName,
+		"env":     "dev",
 	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -292,8 +300,9 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 
 func newRedisExporterDeployment(name, namespace string, exporterVersion string, teamName string) *appsv1.Deployment {
 	labels := map[string]string{
-		"app":  "redis-exporter",
-		"team": teamName,
+		"app":     "redis-exporter",
+		"project": teamName,
+		"env":     "dev",
 	}
 	annotations := map[string]string{
 		"prometheus.io/scrape": "true",
@@ -342,8 +351,9 @@ func newRedisExporterDeployment(name, namespace string, exporterVersion string, 
 
 func newRedisService(name, namespace string, teamName string) *corev1.Service {
 	labels := map[string]string{
-		"app":  "redis",
-		"team": teamName,
+		"app":     "redis",
+		"project": teamName,
+		"env":     "dev",
 	}
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
