@@ -237,6 +237,7 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: func(i int32) *int32 { return &i }(1),
@@ -323,6 +324,7 @@ func newRedisExporterDeployment(name, namespace string, exporterVersion string, 
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name + "-exporter",
 			Namespace: namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: func(i int32) *int32 { return &i }(1),

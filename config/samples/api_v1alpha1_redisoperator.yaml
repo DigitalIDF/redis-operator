@@ -4,9 +4,9 @@ metadata:
   labels:
     app.kubernetes.io/name: redis-operator
     app.kubernetes.io/managed-by: kustomize
-  name: redisoperator-sample
-  namespace: oshri-ns
+  name: redisoperator-dev
+  namespace: team-mofet
 spec:
   redisversion: "6.0.10"  # replace with the desired Redis version
   exporterVersion: "latest"  # replace with the desired Exporter version
-  teamName: "team-matan"  # replace with your team nameos:
+  teamName: "mofet"  # replace with your team nameos:
