@@ -210,8 +210,8 @@ func newPVC(name, namespace string, teamName string) *corev1.PersistentVolumeCla
 			Name:      "redis-data",
 			Namespace: namespace,
 			Labels: map[string]string{
-				"project ": teamName,
-				"env":      "dev",
+				"project": teamName,
+				"env":     "dev",
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -255,6 +255,16 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 6379,
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("100Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("200m"),
+									corev1.ResourceMemory: resource.MustParse("200Mi"),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
@@ -332,6 +342,16 @@ func newRedisExporterDeployment(name, namespace string, exporterVersion string, 
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 9121,
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("100Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("200m"),
+									corev1.ResourceMemory: resource.MustParse("200Mi"),
 								},
 							},
 							Env: []corev1.EnvVar{
