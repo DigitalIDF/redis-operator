@@ -191,10 +191,7 @@ func newConfigMap(name, namespace string, redisVersion string, exporterVersion s
 		},
 		Data: map[string]string{
 			"redis.conf": `
-				save 60 1
-				save 300 10
-				save 900 100
-				save 86400 1
+				save 1 1
 				dir /data
 				dbfilename dump.rdb
 			`,
