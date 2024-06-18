@@ -427,6 +427,18 @@ func newRedisExporterDeployment(name, namespace string, exporterVersion string, 
 									Name:  "REDIS_ADDR",
 									Value: "redis://redis-svc:6379",
 								},
+								// secret for password
+								{
+									Name: "REDIS_PASSWORD",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: "redis-password-" + name,
+											},
+											Key: "password",
+										},
+									},
+								},
 							},
 						},
 					},
