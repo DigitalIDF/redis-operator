@@ -317,7 +317,7 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 									ValueFrom: &corev1.EnvVarSource{
 										SecretKeyRef: &corev1.SecretKeySelector{
 											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "redis-secret",
+												Name: "redis-password-" + name,
 											},
 											Key: "password",
 										},

@@ -9,4 +9,5 @@ metadata:
 spec:
   redisversion: "6.0.10"  # replace with the desired Redis version
   exporterVersion: "latest"  # replace with the desired Exporter version
-  teamName: "mofet"  # replace with your team nameos:
+  teamName: "mofet"  # replace with your team namme
+  env: "dev"  # replace with the desired environment
