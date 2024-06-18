@@ -18,6 +18,9 @@ package controller
 
 import (
 	"context"
+	"math/rand"
+	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -72,37 +75,57 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		redisVersion := instance.Spec.RedisVersion
 		exporterVersion := instance.Spec.ExporterVersion
 		teamName := instance.Spec.TeamName
+		env := instance.Spec.Env
 
-		configMap := newConfigMap(req.Name, req.Namespace, redisVersion, exporterVersion, teamName)
+		password := generateRandomPassword(10) // generate a 10-character random password
+
+		redisPassword := newPassword(password, req.Name, req.Namespace, teamName, env)
+		if err := r.Create(ctx, redisPassword); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		configMap := newConfigMap(req.Name, req.Namespace, teamName, env)
 		if err := r.Create(ctx, configMap); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		pvcData := newPVC(req.Name, req.Namespace, teamName)
+		pvcData := newPVC(req.Name, req.Namespace, teamName, env)
 		if err := r.Create(ctx, pvcData); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, teamName)
+		redisDeployment := newRedisDeployment(req.Name, req.Namespace, redisVersion, teamName, env)
 		if err := r.Create(ctx, redisDeployment); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		exporterDeployment := newRedisExporterDeployment(req.Name, req.Namespace, exporterVersion, teamName)
+		exporterDeployment := newRedisExporterDeployment(req.Name, req.Namespace, exporterVersion, teamName, env)
 		if err := r.Create(ctx, exporterDeployment); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		redisSvc := newRedisService("redis-svc", req.Namespace, teamName)
+		redisSvc := newRedisService(req.Name, req.Namespace, teamName, env)
 		if err := r.Create(ctx, redisSvc); err != nil {
 			return ctrl.Result{}, err
 		}
 	} else {
 		// The RedisOperator is being deleted, perform cleanup tasks
+
+		// Delete the Redis Password Secret
+		redisPassword := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "redis-password-" + req.Name,
+				Namespace: instance.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, redisPassword); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+
 		// Delete the ConfigMap
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "redis-config",
+				Name:      "redis-config-" + req.Name,
 				Namespace: instance.Namespace,
 			},
 		}
@@ -113,7 +136,7 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Delete the PVC
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "redis-data",
+				Name:      "redis-data-" + req.Name,
 				Namespace: instance.Namespace,
 			},
 		}
@@ -146,7 +169,7 @@ func (r *RedisOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Delete the Redis Service
 		redisSvc := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "redis-svc",
+				Name:      "redis-svc-" + instance.Name,
 				Namespace: instance.Namespace,
 			},
 		}
@@ -183,14 +206,44 @@ func removeString(list []string, s string) (result []string) {
 	return
 }
 
-func newConfigMap(name, namespace string, redisVersion string, exporterVersion string, teamName string) *corev1.ConfigMap {
-	cm := &corev1.ConfigMap{
+func generateRandomPassword(length int) string {
+	source := rand.NewSource(time.Now().UnixNano())
+	random := rand.New(source)
+	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		"0123456789")
+	var b strings.Builder
+	for i := 0; i < length; i++ {
+		b.WriteRune(chars[random.Intn(len(chars))])
+	}
+	return b.String()
+}
+
+func newPassword(pass, name, namespace string, teamName string, env string) *corev1.Secret {
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "redis-config",
+			Name:      "redis-password-" + name,
 			Namespace: namespace,
 			Labels: map[string]string{
 				"project": teamName,
-				"env":     "dev",
+				"env":     env,
+			},
+		},
+		StringData: map[string]string{
+			"password": pass,
+		},
+	}
+	return secret
+}
+
+func newConfigMap(name, namespace string, teamName string, env string) *corev1.ConfigMap {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redis-config-" + name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"project": teamName,
+				"env":     env,
 			},
 		},
 		Data: map[string]string{
@@ -204,14 +257,14 @@ func newConfigMap(name, namespace string, redisVersion string, exporterVersion s
 	return cm
 }
 
-func newPVC(name, namespace string, teamName string) *corev1.PersistentVolumeClaim {
+func newPVC(name, namespace string, teamName string, env string) *corev1.PersistentVolumeClaim {
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "redis-data",
+			Name:      "redis-data-" + name,
 			Namespace: namespace,
 			Labels: map[string]string{
 				"project": teamName,
-				"env":     "dev",
+				"env":     env,
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -227,11 +280,11 @@ func newPVC(name, namespace string, teamName string) *corev1.PersistentVolumeCla
 	}
 	return pvc
 }
-func newRedisDeployment(name, namespace string, redisVersion string, teamName string) *appsv1.Deployment {
+func newRedisDeployment(name, namespace string, redisVersion string, teamName string, env string) *appsv1.Deployment {
 	labels := map[string]string{
 		"app":     "redis",
 		"project": teamName,
-		"env":     "dev",
+		"env":     env,
 	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -258,6 +311,19 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 									ContainerPort: 6379,
 								},
 							},
+							Env: []corev1.EnvVar{
+								{
+									Name: "REDIS_PASSWORD",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: "redis-secret",
+											},
+											Key: "password",
+										},
+									},
+								},
+							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -279,7 +345,7 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 									SubPath:   "redis.conf",
 								},
 							},
-							Command: []string{"redis-server", "/usr/local/etc/redis/redis.conf"},
+							Command: []string{"redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass", "$(REDIS_PASSWORD)"},
 						},
 					},
 					Volumes: []corev1.Volume{
@@ -309,11 +375,11 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 	return dep
 }
 
-func newRedisExporterDeployment(name, namespace string, exporterVersion string, teamName string) *appsv1.Deployment {
+func newRedisExporterDeployment(name, namespace string, exporterVersion string, teamName string, env string) *appsv1.Deployment {
 	labels := map[string]string{
 		"app":     "redis-exporter",
 		"project": teamName,
-		"env":     "dev",
+		"env":     env,
 	}
 	annotations := map[string]string{
 		"prometheus.io/scrape": "true",
@@ -371,15 +437,15 @@ func newRedisExporterDeployment(name, namespace string, exporterVersion string, 
 	return dep
 }
 
-func newRedisService(name, namespace string, teamName string) *corev1.Service {
+func newRedisService(name, namespace string, teamName string, env string) *corev1.Service {
 	labels := map[string]string{
 		"app":     "redis",
 		"project": teamName,
-		"env":     "dev",
+		"env":     env,
 	}
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      "redis-svc-" + name,
 			Namespace: namespace,
 			Labels:    labels,
 		},

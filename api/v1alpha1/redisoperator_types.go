@@ -32,6 +32,7 @@ type RedisOperatorSpec struct {
 	RedisVersion    string `json:"redisversion"`
 	ExporterVersion string `json:"exporterVersion"`
 	TeamName        string `json:"teamName"`
+	Env             string `json:"env"`
 }
 
 // RedisOperatorStatus defines the observed state of RedisOperator

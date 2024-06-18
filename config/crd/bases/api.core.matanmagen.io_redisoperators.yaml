@@ -39,6 +39,8 @@ spec:
           spec:
             description: RedisOperatorSpec defines the desired state of RedisOperator
             properties:
+              env:
+                type: string
               exporterVersion:
                 type: string
               redisversion:
@@ -47,6 +49,7 @@ spec:
               teamName:
                 type: string
             required:
+            - env
             - exporterVersion
             - redisversion
             - teamName
