@@ -353,7 +353,7 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 							Name: "redis-storage",
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: "redis-data",
+									ClaimName: "redis-data-" + name,
 								},
 							},
 						},
@@ -362,7 +362,7 @@ func newRedisDeployment(name, namespace string, redisVersion string, teamName st
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: "redis-config",
+										Name: "redis-config-" + name,
 									},
 								},
 							},
